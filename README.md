@@ -14,6 +14,7 @@ a local hash-linked ledger that makes changes to recorded blocks detectable.
 - OTP verification during registration and login
 - Cryptographically generated voter IDs
 - Hashed OTP storage with expiry, resend cooldown, and attempt limits
+- OTP delivery through the Resend HTTPS API in production
 - One recorded ballot per verified voter
 - Fernet-encrypted candidate selections
 - Hash-linked vote ledger with startup integrity validation
@@ -29,13 +30,14 @@ a local hash-linked ledger that makes changes to recorded blocks detectable.
 - SQLite
 - Flask-WTF and Werkzeug
 - `cryptography` Fernet encryption
+- Resend email API
 - Gunicorn
 - Docker
 
 ## Architecture
 
 1. A voter registers with a name and email address.
-2. SecureVote sends a time-bound OTP.
+2. SecureVote sends a time-bound OTP through Resend.
 3. Successful verification creates a unique voter ID.
 4. Login requires the voter ID, email address, and another OTP.
 5. The selected candidate ID is encrypted with Fernet.
@@ -72,10 +74,10 @@ python app.py
 
 Open `http://127.0.0.1:5000`.
 
-Local development allows on-screen OTPs when SMTP is absent. Never enable this
-fallback on a public deployment. Set `ADMIN_PASSWORD` before starting if you
-want a stable local admin login. Otherwise a temporary password is printed to
-the local terminal for that run.
+Local development allows on-screen OTPs when email delivery is absent. Never
+enable this fallback on a public deployment. Production deployment uses
+`wsgi.py`, which replaces only the OTP delivery layer with Resend while keeping
+the existing OTP generation, hashing, expiry, cooldown, and attempt limits.
 
 ## Environment variables
 
@@ -89,12 +91,11 @@ the local terminal for that run.
 | `FERNET_KEY` | Optional | Stable Fernet key. If omitted, a key is generated inside `DATA_DIR`. |
 | `SESSION_COOKIE_SECURE` | Yes | Use `1` on HTTPS deployments. |
 | `ALLOW_DEV_OTP` | Yes | Use `0` in production. Prevents OTPs appearing in logs or pages. |
-| `SMTP_HOST` | Yes for email OTP | SMTP server hostname. |
-| `SMTP_PORT` | Yes for email OTP | Usually `587` for STARTTLS. |
-| `SMTP_USER` | Yes for email OTP | SMTP account username. |
-| `SMTP_PASS` | Yes for email OTP | SMTP password or provider app password. |
+| `RESEND_API_KEY` | Yes for email OTP | Secret Resend API key. Add it only as an environment variable. |
+| `OTP_FROM_EMAIL` | Yes for email OTP | Verified Resend sender, or `SecureVote <onboarding@resend.dev>` for restricted testing. |
 
-Copy `.env.example` only as a reference. Do not commit a real `.env` file.
+Copy `.env.example` only as a reference. Do not commit a real `.env` file or a
+real Resend API key.
 
 Generate a Flask secret locally:
 
@@ -126,11 +127,12 @@ ADMIN_USERNAME=<your-admin-name>
 ADMIN_PASSWORD=<strong-unique-password>
 SESSION_COOKIE_SECURE=1
 ALLOW_DEV_OTP=0
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=<your-email>
-SMTP_PASS=<your-email-provider-app-password>
+RESEND_API_KEY=<your-resend-api-key>
+OTP_FROM_EMAIL=SecureVote <onboarding@resend.dev>
 ```
+
+For real users, replace `onboarding@resend.dev` with a sender on a domain you
+have verified in Resend.
 
 6. Set the Railway health-check path to `/health`.
 7. Keep the service at one replica because the current app uses SQLite and a
@@ -138,7 +140,7 @@ SMTP_PASS=<your-email-provider-app-password>
 8. Generate a public domain from the service networking settings.
 
 Railway injects the `PORT` variable. The Docker start command binds Gunicorn to
-that port automatically.
+that port automatically through `wsgi.py`.
 
 Without a volume, `voting.db`, `chain_data.json`, and the generated Fernet key
 will be lost when Railway replaces the container. Do not skip the volume step.
@@ -158,6 +160,7 @@ The following files are intentionally excluded from Git:
 - `voting.db` and SQLite sidecar files
 - `chain_data.json` and ledger backups
 - Python caches, virtual environments, and logs
+- Real `RESEND_API_KEY` values
 
 The uploaded project archive originally contained real runtime data. This
 repository was rebuilt from source files only. No original voter database,

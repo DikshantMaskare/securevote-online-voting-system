@@ -14,7 +14,7 @@ a local hash-linked ledger that makes changes to recorded blocks detectable.
 - OTP verification during registration and login
 - Cryptographically generated voter IDs
 - Hashed OTP storage with expiry, resend cooldown, and attempt limits
-- OTP delivery through the Resend HTTPS API in production
+- OTP delivery through authenticated Gmail SMTP in production
 - One recorded ballot per verified voter
 - Fernet-encrypted candidate selections
 - Hash-linked vote ledger with startup integrity validation
@@ -30,14 +30,14 @@ a local hash-linked ledger that makes changes to recorded blocks detectable.
 - SQLite
 - Flask-WTF and Werkzeug
 - `cryptography` Fernet encryption
-- Resend email API
+- Gmail SMTP with an App Password
 - Gunicorn
 - Docker
 
 ## Architecture
 
 1. A voter registers with a name and email address.
-2. SecureVote sends a time-bound OTP through Resend.
+2. SecureVote sends a time-bound OTP through the configured Gmail account.
 3. Successful verification creates a unique voter ID.
 4. Login requires the voter ID, email address, and another OTP.
 5. The selected candidate ID is encrypted with Fernet.
@@ -75,9 +75,8 @@ python app.py
 Open `http://127.0.0.1:5000`.
 
 Local development allows on-screen OTPs when email delivery is absent. Never
-enable this fallback on a public deployment. Production deployment uses
-`wsgi.py`, which replaces only the OTP delivery layer with Resend while keeping
-the existing OTP generation, hashing, expiry, cooldown, and attempt limits.
+enable this fallback on a public deployment. Production starts `app.py`
+directly through Gunicorn and fails safely when SMTP is unavailable.
 
 ## Environment variables
 
@@ -91,11 +90,13 @@ the existing OTP generation, hashing, expiry, cooldown, and attempt limits.
 | `FERNET_KEY` | Optional | Stable Fernet key. If omitted, a key is generated inside `DATA_DIR`. |
 | `SESSION_COOKIE_SECURE` | Yes | Use `1` on HTTPS deployments. |
 | `ALLOW_DEV_OTP` | Yes | Use `0` in production. Prevents OTPs appearing in logs or pages. |
-| `RESEND_API_KEY` | Yes for email OTP | Secret Resend API key. Add it only as an environment variable. |
-| `OTP_FROM_EMAIL` | Yes for email OTP | Verified Resend sender, or `SecureVote <onboarding@resend.dev>` for restricted testing. |
+| `SMTP_HOST` | Yes for email OTP | Use `smtp.gmail.com`. |
+| `SMTP_PORT` | Yes for email OTP | Use `587` for STARTTLS. |
+| `SMTP_USER` | Yes for email OTP | Dedicated Gmail address used to send OTPs. |
+| `SMTP_PASS` | Yes for email OTP | 16-digit Google App Password. Never use the normal Google password. |
 
-Copy `.env.example` only as a reference. Do not commit a real `.env` file or a
-real Resend API key.
+Copy `.env.example` only as a reference. Do not commit a real `.env` file,
+Gmail address, or App Password.
 
 Generate a Flask secret locally:
 
@@ -127,12 +128,24 @@ ADMIN_USERNAME=<your-admin-name>
 ADMIN_PASSWORD=<strong-unique-password>
 SESSION_COOKIE_SECURE=1
 ALLOW_DEV_OTP=0
-RESEND_API_KEY=<your-resend-api-key>
-OTP_FROM_EMAIL=SecureVote <onboarding@resend.dev>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=<your-dedicated-gmail-address>
+SMTP_PASS=<your-16-digit-google-app-password>
 ```
 
-For real users, replace `onboarding@resend.dev` with a sender on a domain you
-have verified in Resend.
+### Free Gmail OTP setup
+
+1. Create or use a dedicated Gmail account for SecureVote.
+2. Enable 2-Step Verification on that Google account.
+3. Open Google Account > Security > App passwords.
+4. Create an App Password for SecureVote.
+5. In Railway Variables, set `SMTP_USER` to the Gmail address and `SMTP_PASS`
+   to the 16-digit App Password. Do not put either value in GitHub.
+
+This route does not need a Google Cloud project, Gmail API credentials, a
+custom domain, or a payment card. It is suitable for a student demonstration
+and small tests, but Gmail sending and anti-abuse limits still apply.
 
 6. Set the Railway health-check path to `/health`.
 7. Keep the service at one replica because the current app uses SQLite and a
@@ -140,7 +153,7 @@ have verified in Resend.
 8. Generate a public domain from the service networking settings.
 
 Railway injects the `PORT` variable. The Docker start command binds Gunicorn to
-that port automatically through `wsgi.py`.
+that port automatically through `app.py`.
 
 Without a volume, `voting.db`, `chain_data.json`, and the generated Fernet key
 will be lost when Railway replaces the container. Do not skip the volume step.
@@ -160,7 +173,7 @@ The following files are intentionally excluded from Git:
 - `voting.db` and SQLite sidecar files
 - `chain_data.json` and ledger backups
 - Python caches, virtual environments, and logs
-- Real `RESEND_API_KEY` values
+- Real Gmail addresses and App Passwords
 
 The uploaded project archive originally contained real runtime data. This
 repository was rebuilt from source files only. No original voter database,

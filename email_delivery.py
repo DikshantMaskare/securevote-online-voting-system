@@ -52,7 +52,9 @@ def send_otp_email(
         return True
 
     except Exception as exc:
-        print(f"[RESEND ERROR] {type(exc).__name__}")
+        # Log the provider's rejection reason for diagnosis. This does not
+        # print the API key or OTP.
+        print(f"[RESEND ERROR] {type(exc).__name__}: {exc}")
 
         if allow_dev_otp:
             print(

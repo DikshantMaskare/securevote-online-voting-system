@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login &mdash; SecureVote{% endblock %}
+
+{% block content %}
+
+<section class="card-form">
+
+    <h2>Administrator Login</h2>
+
+    <p class="muted">
+        Sign in to access the SecureVote administration dashboard.
+    </p>
+
+    <form method="POST">
+
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        <label for="username">
+            Username
+        </label>
+
+        <input
+            type="text"
+            id="username"
+            name="username"
+            required
+            autocomplete="username"
+        >
+
+        <label for="password">
+            Password
+        </label>
+
+        <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            autocomplete="current-password"
+        >
+
+        <button
+            type="submit"
+            class="btn btn-primary"
+        >
+            Login
+        </button>
+
+    </form>
+
+</section>
+
+{% endblock %}

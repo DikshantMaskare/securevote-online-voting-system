@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Login OTP &mdash; SecureVote{% endblock %}
+
+{% block content %}
+
+<section class="card-form">
+
+    <h2>Complete Login</h2>
+
+    <p class="muted">
+        Enter the 6-digit OTP sent to
+        <strong>{{ voter['email'] }}</strong>.
+        It expires 5 minutes after being sent.
+    </p>
+
+    <form method="POST">
+
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        <label for="otp">
+            One-time password
+        </label>
+
+        <input
+            type="text"
+            id="otp"
+            name="otp"
+            inputmode="numeric"
+            maxlength="6"
+            pattern="\d{6}"
+            autocomplete="one-time-code"
+            required
+            autofocus
+        >
+
+        <button
+            type="submit"
+            class="btn btn-primary"
+        >
+            Verify &amp; Login
+        </button>
+
+    </form>
+
+    <form
+        method="POST"
+        class="inline-form"
+    >
+
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}"
+        >
+
+        <button
+            type="submit"
+            name="resend"
+            value="1"
+            class="btn btn-link"
+        >
+            Resend OTP
+        </button>
+
+    </form>
+
+</section>
+
+{% endblock %}

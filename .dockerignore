@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.db
+*.db-*
+chain_data*.json
+secret.key
+docs
+tests
+*.log

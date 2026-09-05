@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Results &mdash; SecureVote{% endblock %}
+{% block content %}
+<section class="card-form wide">
+    <h2>Live results</h2>
+    <p class="muted">Tallied by decrypting every block in the ledger &mdash; not from a separate counter, so the numbers below are only as trustworthy as the chain itself.
+        {% if voting_open %}Voting is still open, so this count will change.{% else %}Voting is closed.{% endif %}
+    </p>
+    <table class="results-table">
+        <thead><tr><th>Candidate</th><th>Party</th><th>Votes</th></tr></thead>
+        <tbody>
+        {% for c in candidates %}
+            <tr>
+                <td>{{ c['name'] }}</td>
+                <td>{{ c['party'] }}</td>
+                <td>{{ tally.get(c['id'], 0) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

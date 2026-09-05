@@ -15,7 +15,7 @@ consensus, validators, or independent nodes.
 - `.env` files containing real values
 - `voting.db` or any other voter database
 - `chain_data.json` or ledger backups containing real votes
-- SMTP credentials or application passwords
+- Resend API keys or other email-provider credentials
 
 If any of these files are committed, deleting them in a later commit is not
 enough. Remove them from Git history and rotate every exposed credential and

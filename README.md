@@ -144,8 +144,9 @@ SMTP_PASS=<your-16-digit-google-app-password>
    to the 16-digit App Password. Do not put either value in GitHub.
 
 This route does not need a Google Cloud project, Gmail API credentials, a
-custom domain, or a payment card. It is suitable for a student demonstration
-and small tests, but Gmail sending and anti-abuse limits still apply.
+custom domain, or a payment card. It can send OTPs to voters using different
+email addresses. It is suitable for a student demonstration and small tests,
+but Gmail sending, spam filtering, and anti-abuse limits still apply.
 
 6. Set the Railway health-check path to `/health`.
 7. Keep the service at one replica because the current app uses SQLite and a

@@ -1,7 +1,7 @@
 """WSGI entry point for production deployments.
 
 Imports the existing SecureVote Flask application and replaces only its
-OTP delivery function with the Resend HTTPS implementation. OTP generation,
+OTP delivery function with the Gmail API HTTPS implementation. OTP generation,
 hashing, expiry, cooldown, attempt limits, and fail-closed behavior remain in
 app.py.
 """

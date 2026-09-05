@@ -19,21 +19,26 @@ Environment variables supported:
     ADMIN_USERNAME
     ADMIN_PASSWORD
 
+    BREVO_API_KEY
+    OTP_FROM_EMAIL
+
     SMTP_HOST
     SMTP_PORT
     SMTP_USER
     SMTP_PASS
 
-Without SMTP configuration, SecureVote runs in DEV MODE
+Without email delivery configuration, SecureVote runs in DEV MODE
 and displays OTPs on-screen and in the terminal.
 """
 
 import hashlib
+import json
 import os
 import secrets
 import smtplib
 import sqlite3
 import time
+import urllib.request
 
 from email.message import EmailMessage
 from functools import wraps
@@ -606,12 +611,104 @@ def send_otp_email(
     otp,
     purpose="verification",
 ):
-    """
-    Send OTP using SMTP.
+    """Send an OTP through Brevo HTTPS or an SMTP server.
 
-    When SMTP is not configured,
-    use DEV MODE.
+    Brevo is preferred when configured because Railway blocks outbound SMTP
+    on Free, Trial, and Hobby plans. SMTP remains available for local use and
+    hosts that permit outbound SMTP connections.
     """
+
+    brevo_api_key = os.environ.get(
+        "BREVO_API_KEY"
+    )
+
+    from_email = os.environ.get(
+        "OTP_FROM_EMAIL"
+    )
+
+    if brevo_api_key:
+
+        if not from_email:
+
+            print(
+                "[OTP ERROR] OTP_FROM_EMAIL is not configured."
+            )
+
+            return None
+
+        payload = json.dumps(
+            {
+                "sender": {
+                    "name": "SecureVote",
+                    "email": from_email,
+                },
+                "to": [
+                    {
+                        "email": to_email,
+                    }
+                ],
+                "subject": (
+                    f"Your SecureVote OTP for {purpose}"
+                ),
+                "textContent": (
+                    f"Your SecureVote OTP is {otp}. "
+                    "It expires in 5 minutes. "
+                    "If you did not request this code, "
+                    "ignore this email."
+                ),
+            }
+        ).encode("utf-8")
+
+        request_data = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={
+                "accept": "application/json",
+                "api-key": brevo_api_key,
+                "content-type": "application/json",
+            },
+            method="POST",
+        )
+
+        try:
+
+            with urllib.request.urlopen(
+                request_data,
+                timeout=10,
+            ) as response:
+
+                if not 200 <= response.status < 300:
+                    raise RuntimeError(
+                        "Brevo rejected the email request."
+                    )
+
+            return True
+
+        except Exception as exc:
+
+            status_code = getattr(
+                exc,
+                "code",
+                "unavailable",
+            )
+
+            print(
+                "[BREVO ERROR] "
+                f"{type(exc).__name__}; "
+                f"status={status_code}"
+            )
+
+            if ALLOW_DEV_OTP:
+
+                print(
+                    f"[DEV OTP] "
+                    f"{purpose} code "
+                    f"for {to_email}: {otp}"
+                )
+
+                return False
+
+            return None
 
     host = os.environ.get(
         "SMTP_HOST"
@@ -632,11 +729,6 @@ def send_otp_email(
         )
     )
 
-
-    # -----------------------------------------------------------------------
-    # DEV MODE
-    # -----------------------------------------------------------------------
-
     if not (
         host
         and user
@@ -654,39 +746,31 @@ def send_otp_email(
             return False
 
         print(
-            "[OTP ERROR] SMTP is not configured."
+            "[OTP ERROR] Email delivery is not configured."
         )
 
         return None
 
-
-    # -----------------------------------------------------------------------
-    # Real SMTP
-    # -----------------------------------------------------------------------
-
     try:
 
         message = EmailMessage()
-
 
         message["Subject"] = (
             f"Your SecureVote OTP for {purpose}"
         )
 
         message["From"] = user
-
         message["To"] = to_email
-
 
         message.set_content(
             f"Your OTP code is {otp}. "
             f"It expires in 5 minutes."
         )
 
-
         with smtplib.SMTP(
             host,
             port,
+            timeout=10,
         ) as server:
 
             server.starttls()
@@ -700,9 +784,7 @@ def send_otp_email(
                 message
             )
 
-
         return True
-
 
     except Exception as exc:
 
@@ -721,7 +803,6 @@ def send_otp_email(
             return False
 
         return None
-
 
 def issue_otp(
     voter_row_id,

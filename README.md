@@ -14,7 +14,7 @@ a local hash-linked ledger that makes changes to recorded blocks detectable.
 - OTP verification during registration and login
 - Cryptographically generated voter IDs
 - Hashed OTP storage with expiry, resend cooldown, and attempt limits
-- OTP delivery through authenticated Gmail SMTP in production
+- OTP delivery through the Brevo HTTPS API on Railway
 - One recorded ballot per verified voter
 - Fernet-encrypted candidate selections
 - Hash-linked vote ledger with startup integrity validation
@@ -30,14 +30,14 @@ a local hash-linked ledger that makes changes to recorded blocks detectable.
 - SQLite
 - Flask-WTF and Werkzeug
 - `cryptography` Fernet encryption
-- Gmail SMTP with an App Password
+- Brevo transactional email API
 - Gunicorn
 - Docker
 
 ## Architecture
 
 1. A voter registers with a name and email address.
-2. SecureVote sends a time-bound OTP through the configured Gmail account.
+2. SecureVote sends a time-bound OTP through Brevo's HTTPS API.
 3. Successful verification creates a unique voter ID.
 4. Login requires the voter ID, email address, and another OTP.
 5. The selected candidate ID is encrypted with Fernet.
@@ -76,7 +76,7 @@ Open `http://127.0.0.1:5000`.
 
 Local development allows on-screen OTPs when email delivery is absent. Never
 enable this fallback on a public deployment. Production starts `app.py`
-directly through Gunicorn and fails safely when SMTP is unavailable.
+directly through Gunicorn and fails safely when email delivery is unavailable.
 
 ## Environment variables
 
@@ -90,13 +90,15 @@ directly through Gunicorn and fails safely when SMTP is unavailable.
 | `FERNET_KEY` | Optional | Stable Fernet key. If omitted, a key is generated inside `DATA_DIR`. |
 | `SESSION_COOKIE_SECURE` | Yes | Use `1` on HTTPS deployments. |
 | `ALLOW_DEV_OTP` | Yes | Use `0` in production. Prevents OTPs appearing in logs or pages. |
-| `SMTP_HOST` | Yes for email OTP | Use `smtp.gmail.com`. |
-| `SMTP_PORT` | Yes for email OTP | Use `587` for STARTTLS. |
-| `SMTP_USER` | Yes for email OTP | Dedicated Gmail address used to send OTPs. |
-| `SMTP_PASS` | Yes for email OTP | 16-digit Google App Password. Never use the normal Google password. |
+| `BREVO_API_KEY` | Yes for Railway email OTP | Secret Brevo API key used over HTTPS. |
+| `OTP_FROM_EMAIL` | Yes for Railway email OTP | Sender address verified inside Brevo. |
+| `SMTP_HOST` | Optional | SMTP host for local use or paid hosts that allow SMTP. |
+| `SMTP_PORT` | Optional | SMTP port. Defaults to `587`. |
+| `SMTP_USER` | Optional | SMTP username. |
+| `SMTP_PASS` | Optional | SMTP password or provider App Password. |
 
 Copy `.env.example` only as a reference. Do not commit a real `.env` file,
-Gmail address, or App Password.
+Brevo API key, SMTP password, or App Password.
 
 Generate a Flask secret locally:
 
@@ -128,25 +130,27 @@ ADMIN_USERNAME=<your-admin-name>
 ADMIN_PASSWORD=<strong-unique-password>
 SESSION_COOKIE_SECURE=1
 ALLOW_DEV_OTP=0
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=<your-dedicated-gmail-address>
-SMTP_PASS=<your-16-digit-google-app-password>
+BREVO_API_KEY=<your-brevo-api-key>
+OTP_FROM_EMAIL=<your-verified-brevo-sender-email>
 ```
 
-### Free Gmail OTP setup
+### Free Brevo OTP setup
 
-1. Create or use a dedicated Gmail account for SecureVote.
-2. Enable 2-Step Verification on that Google account.
-3. Open Google Account > Security > App passwords.
-4. Create an App Password for SecureVote.
-5. In Railway Variables, set `SMTP_USER` to the Gmail address and `SMTP_PASS`
-   to the 16-digit App Password. Do not put either value in GitHub.
+Railway blocks outbound SMTP on Free, Trial, and Hobby plans, so Gmail SMTP
+cannot work there. SecureVote uses Brevo's HTTPS transactional email API
+instead.
 
-This route does not need a Google Cloud project, Gmail API credentials, a
-custom domain, or a payment card. It can send OTPs to voters using different
-email addresses. It is suitable for a student demonstration and small tests,
-but Gmail sending, spam filtering, and anti-abuse limits still apply.
+1. Create a free Brevo account.
+2. In **Settings > Senders, Domains & Dedicated IPs > Senders**, add the Gmail
+   address that will send SecureVote OTPs.
+3. Enter the verification code Brevo sends to that Gmail address.
+4. In **SMTP & API > API Keys**, generate an API key.
+5. In Railway Variables, set `OTP_FROM_EMAIL` to the verified sender and
+   `BREVO_API_KEY` to the generated key.
+
+Brevo's free plan currently allows 300 email sends per day. Domain
+authentication is recommended for deliverability but is not required for this
+small academic demonstration when the individual sender address is verified.
 
 6. Set the Railway health-check path to `/health`.
 7. Keep the service at one replica because the current app uses SQLite and a
@@ -174,7 +178,7 @@ The following files are intentionally excluded from Git:
 - `voting.db` and SQLite sidecar files
 - `chain_data.json` and ledger backups
 - Python caches, virtual environments, and logs
-- Real Gmail addresses and App Passwords
+- Real Brevo API keys, SMTP passwords, and App Passwords
 
 The uploaded project archive originally contained real runtime data. This
 repository was rebuilt from source files only. No original voter database,
